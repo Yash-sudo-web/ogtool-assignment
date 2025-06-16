@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OGTool Scraper</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+        }
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            background-color: white;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .results {
+            margin-top: 20px;
+        }
+        .content-item {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .content-item h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .content-item p {
+            margin: 5px 0;
+            color: #666;
+        }
+        .error {
+            color: #dc3545;
+            padding: 10px;
+            background-color: #f8d7da;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        .success {
+            color: #28a745;
+            padding: 10px;
+            background-color: #d4edda;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>OGTool Content Scraper</h1>
+        
+        <div id="message"></div>
+
+        <div class="form-group">
+            <label for="sourceSelect">Select Content Source:</label>
+            <select id="sourceSelect" required>
+                <option value="">Select a source...</option>
+                <option value="interviewing_io_blog">Interviewing.io Blog Posts</option>
+                <option value="interviewing_io_company_guides">Company Guides</option>
+                <option value="interviewing_io_interview_guides">Interview Guides</option>
+                <option value="nil_mamano_dsa">Nil Mamano's DS&A Blog Posts</option>
+                <option value="aline_book">Aline's Book</option>
+            </select>
+        </div>
+
+        <button onclick="scrapeContent()">Scrape Content</button>
+
+        <div class="results">
+            <h2>Scraped Content</h2>
+            <div id="contentList"></div>
+        </div>
+    </div>
+
+    <script>
+        const SOURCE_URLS = {
+            interviewing_io_blog: 'https://interviewing.io/blog',
+            interviewing_io_company_guides: 'https://interviewing.io/topics#companies',
+            interviewing_io_interview_guides: 'https://interviewing.io/learn#interview-guides',
+            nil_mamano_dsa: 'https://nilmamano.com/blog/category/dsa',
+            aline_book: 'book' // Special case for PDF files
+        };
+
+        // Function to show messages
+        function showMessage(message, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.className = type;
+            messageDiv.textContent = message;
+            setTimeout(() => {
+                messageDiv.textContent = '';
+                messageDiv.className = '';
+            }, 5000);
+        }
+
+        // Function to scrape content
+        async function scrapeContent() {
+            const sourceSelect = document.getElementById('sourceSelect');
+            const selectedSource = sourceSelect.value;
+
+            if (!selectedSource) {
+                showMessage('Please select a content source', 'error');
+                return;
+            }
+
+            const url = SOURCE_URLS[selectedSource];
+
+            if (selectedSource === 'aline_book') {
+                // Handle PDF files
+                try {
+                    const response = await fetch('/api/scrape-pdf', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({}),
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to process PDF files');
+                    }
+
+                    const data = await response.json();
+                    console.log(data);
+                    showMessage('PDF content processed successfully!', 'success');
+                    loadContent();
+                } catch (error) {
+                    showMessage(error.message, 'error');
+                }
+            } else {
+                // Handle web content
+                try {
+                    const response = await fetch('/api/scrape', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ url }),
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Failed to scrape content');
+                    }
+
+                    const data = await response.json();
+                    showMessage('Content scraped successfully!', 'success');
+                    loadContent();
+                } catch (error) {
+                    showMessage(error.message, 'error');
+                }
+            }
+        }
+
+        // Function to load all content
+        async function loadContent() {
+            try {
+                const response = await fetch('/api/content');
+                const content = await response.json();
+                
+                const contentList = document.getElementById('contentList');
+                contentList.innerHTML = content.map(item => `
+                    <div class="content-item">
+                        <h3>${item.title}</h3>
+                        <p><strong>Author:</strong> ${item.author || 'Unknown'}</p>
+                        <p><strong>Source:</strong> <a href="${item.source_url}" target="_blank">${item.source_url}</a></p>
+                        <p><strong>Content:</strong> ${item.content.substring(0, 200)}...</p>
+                    </div>
+                `).join('');
+            } catch (error) {
+                showMessage('Failed to load content', 'error');
+            }
+        }
+
+        // Load content when page loads
+        document.addEventListener('DOMContentLoaded', loadContent);
+    </script>
+</body>
+</html> 
