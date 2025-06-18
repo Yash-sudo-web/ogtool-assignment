@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Detail - OGTool Scraper</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .header h1 {
+            margin: 0;
+            color: #333;
+            font-size: 28px;
+        }
+        .back-btn {
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .back-btn:hover {
+            background-color: #5a6268;
+        }
+        .export-btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .export-btn:hover {
+            background-color: #218838;
+        }
+        .content-meta {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        .content-meta p {
+            margin: 8px 0;
+            color: #666;
+        }
+        .content-meta strong {
+            color: #333;
+        }
+        .content-meta a {
+            color: #007bff;
+            text-decoration: none;
+        }
+        .content-meta a:hover {
+            text-decoration: underline;
+        }
+        .content-body {
+            line-height: 1.8;
+            color: #333;
+            font-size: 16px;
+        }
+        .content-body p {
+            margin-bottom: 16px;
+        }
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .error {
+            color: #dc3545;
+            padding: 20px;
+            background-color: #f8d7da;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #007bff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Content Detail</h1>
+            <div>
+                <button onclick="exportAsJson()" class="export-btn" id="exportBtn" disabled>Export as JSON</button>
+                <a href="index.html" class="back-btn">← Back to Scraper</a>
+            </div>
+        </div>
+
+        <div id="content">
+            <div class="loading">
+                <span class="loading-spinner"></span>
+                Loading content...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentContent = null;
+
+        // Function to show messages
+        function showMessage(message, type) {
+            const contentDiv = document.getElementById('content');
+            contentDiv.innerHTML = `<div class="${type}">${message}</div>`;
+        }
+
+        // Function to export content as JSON
+        function exportAsJson() {
+            if (!currentContent) {
+                showMessage('No content to export', 'error');
+                return;
+            }
+
+            const dataStr = JSON.stringify(currentContent, null, 2);
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `content-${currentContent.id || Date.now()}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            
+            // Show success message
+            const exportBtn = document.getElementById('exportBtn');
+            const originalText = exportBtn.textContent;
+            exportBtn.textContent = 'Exported!';
+            exportBtn.style.backgroundColor = '#28a745';
+            setTimeout(() => {
+                exportBtn.textContent = originalText;
+                exportBtn.style.backgroundColor = '#28a745';
+            }, 2000);
+        }
+
+        // Function to load content by ID
+        async function loadContentById(contentId) {
+            try {
+                const response = await fetch(`/api/content/${contentId}`);
+                
+                if (!response.ok) {
+                    throw new Error('Content not found');
+                }
+
+                const content = await response.json();
+                currentContent = content;
+                
+                displayContent(content);
+            } catch (error) {
+                showMessage(`Failed to load content: ${error.message}`, 'error');
+            }
+        }
+
+        // Function to display content
+        function displayContent(content) {
+            const contentDiv = document.getElementById('content');
+            const exportBtn = document.getElementById('exportBtn');
+            
+            exportBtn.disabled = false;
+            
+            contentDiv.innerHTML = `
+                <div class="content-meta">
+                    <p><strong>Title:</strong> ${content.title}</p>
+                    <p><strong>Author:</strong> ${content.author || 'Unknown'}</p>
+                    <p><strong>Source:</strong> <a href="${content.source_url}" target="_blank">${content.source_url}</a></p>
+                    <p><strong>Content Type:</strong> ${content.content_type || 'Unknown'}</p>
+                    <p><strong>Scraped:</strong> ${new Date(content.created_at || Date.now()).toLocaleString()}</p>
+                </div>
+                <div class="content-body">
+                    ${content.content.split('\n').map(paragraph => 
+                        paragraph.trim() ? `<p>${paragraph}</p>` : ''
+                    ).join('')}
+                </div>
+            `;
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', () => {
+            // Get content ID from URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const contentId = urlParams.get('id');
+            
+            if (!contentId) {
+                showMessage('No content ID provided', 'error');
+                return;
+            }
+            
+            loadContentById(contentId);
+        });
+    </script>
+</body>
+</html> 
